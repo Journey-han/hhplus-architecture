@@ -45,6 +45,7 @@ public class LectureApplyService {
             throw new LectureException("해당 특강은 이미 신청한 특강입니다.");
         }
 
+
         // 신청자 수 검증
         if (lectureInfo.getAppliedCnt() >= 30) {
             throw new LectureException("해당 특강은 정원(30명)을 초과하였습니다.");
