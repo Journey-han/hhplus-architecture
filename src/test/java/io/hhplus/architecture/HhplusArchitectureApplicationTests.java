@@ -7,6 +7,7 @@ import io.hhplus.architecture.repository.LectureApplyHistoryRepository;
 import io.hhplus.architecture.repository.LectureInfoRepository;
 import io.hhplus.architecture.service.LectureApplyService;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -15,12 +16,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class HhplusArchitectureApplicationTests {
@@ -130,6 +133,35 @@ class HhplusArchitectureApplicationTests {
 		assertEquals(26, lectureInfo.getAppliedCnt());
 		verify(lectureInfoRepository).save(lectureInfo);
 		verify(lectureApplyHistoryRepository).save(any(LectureApplyHistory.class));
+	}
+
+	@Test
+	@DisplayName("동시성테스트 - 30명까지만 성공")
+	public void testConcurrency() throws InterruptedException {
+		Long lectureInfoId = 101L;
+
+		// 초기 상태: 신청자 수 25명
+		LectureInfo lectureInfo = new LectureInfo();
+		lectureInfo.setAppliedCnt(0);
+		lectureInfo.setLectureDate(LocalDate.now().plusDays(1));  // 미래 날짜
+
+		// Mock 설정
+		when(lectureInfoRepository.findByLectureInfoId(lectureInfoId)).thenReturn(Optional.of(lectureInfo));
+
+		ExecutorService executor = Executors.newFixedThreadPool(40);
+		for (int i = 0; i < 40; i++) {
+			Long userId = (long) i + 1;
+			executor.submit(() -> {
+				lectureApplyService.applyForLecture(lectureInfoId, userId);
+			});
+		}
+
+		executor.shutdown();
+		executor.awaitTermination(1, TimeUnit.MINUTES);
+
+		// 신청자 수가 30명이 되었는지 확인
+		assertEquals(30, lectureInfo.getAppliedCnt());
+		verify(lectureInfoRepository, times(40)).save(lectureInfo);
 	}
 
 }
