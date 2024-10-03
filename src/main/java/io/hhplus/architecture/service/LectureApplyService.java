@@ -24,7 +24,7 @@ public class LectureApplyService {
     }
 
     /**
-     * 특강 신청
+     * 특강 신청 - 선착순 30명 이후 신청에 대한 실패 처리
      * @param lectureInfoId
      * @param userId
      */
