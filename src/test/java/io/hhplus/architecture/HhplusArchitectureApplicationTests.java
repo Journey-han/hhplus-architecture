@@ -134,6 +134,7 @@ class HhplusArchitectureApplicationTests {
 		verify(lectureApplyHistoryRepository).save(any(LectureApplyHistory.class));
 	}
 
+
 	@Test
 	@DisplayName("동일한 유저가 같은 특강을 5번 신청할 때, 1번만 성공")
 	public void testDuplicateLectureApplication() throws InterruptedException {
