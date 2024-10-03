@@ -7,7 +7,6 @@ import io.hhplus.architecture.repository.LectureApplyHistoryRepository;
 import io.hhplus.architecture.repository.LectureInfoRepository;
 import io.hhplus.architecture.service.LectureApplyService;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -136,21 +135,28 @@ class HhplusArchitectureApplicationTests {
 	}
 
 	@Test
-	@DisplayName("동시성테스트 - 30명까지만 성공")
-	public void testConcurrency() throws InterruptedException {
+	@DisplayName("동일한 유저가 같은 특강을 5번 신청할 때, 1번만 성공")
+	public void testDuplicateLectureApplication() throws InterruptedException {
 		Long lectureInfoId = 101L;
+		Long userId = 1L;
 
-		// 초기 상태: 신청자 수 25명
+		// 초기 상태
 		LectureInfo lectureInfo = new LectureInfo();
-		lectureInfo.setAppliedCnt(0);
+		lectureInfo.setAppliedCnt(25);
 		lectureInfo.setLectureDate(LocalDate.now().plusDays(1));  // 미래 날짜
 
 		// Mock 설정
-		when(lectureInfoRepository.findByLectureInfoId(lectureInfoId)).thenReturn(Optional.of(lectureInfo));
+		when(lectureInfoRepository.findByLectureInfoId(lectureInfoId))
+				.thenReturn(Optional.of(lectureInfo));
 
-		ExecutorService executor = Executors.newFixedThreadPool(40);
-		for (int i = 0; i < 40; i++) {
-			Long userId = (long) i + 1;
+		// 첫 번째 호출만 성공하고, 이후에는 중복 신청이 발생
+		when(lectureApplyHistoryRepository.existsByUserIdAndLectureInfo_LectureInfoId(userId, lectureInfoId))
+				.thenReturn(false)  // 첫 번째 호출은 신청 가능
+				.thenReturn(true);   // 중복 신청으로 실패 처리
+
+		// 동일한 유저(userId)가 같은 특강(lectureInfoId)을 5번 신청 시도
+		ExecutorService executor = Executors.newFixedThreadPool(5);  // 5명의 스레드로 동시에 신청 시도
+		for (int i = 0; i < 10; i++) {
 			executor.submit(() -> {
 				lectureApplyService.applyForLecture(lectureInfoId, userId);
 			});
@@ -159,9 +165,12 @@ class HhplusArchitectureApplicationTests {
 		executor.shutdown();
 		executor.awaitTermination(1, TimeUnit.MINUTES);
 
-		// 신청자 수가 30명이 되었는지 확인
-		assertEquals(30, lectureInfo.getAppliedCnt());
-		verify(lectureInfoRepository, times(40)).save(lectureInfo);
+		// 1번만 호출되었는지 확인
+		verify(lectureInfoRepository, times(1)).save(lectureInfo);
+
+		// 1번만 저장되었는지 확인
+		verify(lectureApplyHistoryRepository, times(1)).save(any(LectureApplyHistory.class));
 	}
+
 
 }
